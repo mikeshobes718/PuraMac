@@ -1,21 +1,30 @@
 import AppKit
+import QuickLookThumbnailing
 import UserNotifications
 
 final class LargeFilesView: NSView {
     private var items: [LargeFileItem] = []
     private var selected: Set<Int> = []
     private var scanning = false
+    private let thumbnailCache = NSCache<NSString, NSImage>()
+    private var generatingKeys: Set<String> = []
 
     private let scanButton = NSButton(title: "Scan Home", target: nil, action: nil)
     private let moveButton = NSButton(title: "Move to Trash", target: nil, action: nil)
+    private let thumbToggle = NSButton(checkboxWithTitle: "Thumbnails", target: nil, action: nil)
     private let progressLabel = NSTextField(labelWithString: "Find files over 100 MB anywhere in your home folder.")
     private let totalLabel = NSTextField(labelWithString: "")
     private let table = NSTableView()
     private let scroll = NSScrollView()
 
+    private var thumbnailsOn: Bool {
+        UserDefaults.standard.bool(forKey: "PuraMacLargeFilesThumbnails")
+    }
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
+        thumbnailCache.countLimit = 300
 
         let header = NSTextField(labelWithString: "Large Files")
         header.font = NSFont.systemFont(ofSize: 22, weight: .semibold)
@@ -29,13 +38,20 @@ final class LargeFilesView: NSView {
         moveButton.action = #selector(moveClicked(_:))
         moveButton.isEnabled = false
 
-        let headerRow = NSStackView(views: [header, NSView(), scanButton, moveButton])
+        thumbToggle.target = self
+        thumbToggle.action = #selector(thumbnailsToggled(_:))
+        thumbToggle.state = thumbnailsOn ? .on : .off
+
+        let headerRow = NSStackView(views: [header, NSView(), thumbToggle, scanButton, moveButton])
         headerRow.orientation = .horizontal
         headerRow.spacing = 8
         headerRow.translatesAutoresizingMaskIntoConstraints = false
 
         progressLabel.textColor = .secondaryLabelColor
 
+        let previewCol = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("preview"))
+        previewCol.title = ""
+        previewCol.width = 48
         let checkCol = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("check"))
         checkCol.title = ""
         checkCol.width = 40
@@ -44,10 +60,11 @@ final class LargeFilesView: NSView {
         sizeCol.width = 100
         let nameCol = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("name"))
         nameCol.title = "File"
-        nameCol.width = 560
+        nameCol.width = 512
         let modCol = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("mod"))
         modCol.title = "Modified"
         modCol.width = 150
+        table.addTableColumn(previewCol)
         table.addTableColumn(checkCol)
         table.addTableColumn(sizeCol)
         table.addTableColumn(nameCol)
@@ -120,6 +137,11 @@ final class LargeFilesView: NSView {
                 self.totalLabel.stringValue = result.isEmpty ? "" : String(format: "%d files, %@ total", result.count, SystemStats.formatBytes(totalBytes))
             }
         }
+    }
+
+    @objc private func thumbnailsToggled(_ sender: NSButton) {
+        UserDefaults.standard.set(sender.state == .on, forKey: "PuraMacLargeFilesThumbnails")
+        table.reloadData()
     }
 
     @objc private func moveClicked(_ sender: Any) {
@@ -231,6 +253,8 @@ extension LargeFilesView: NSTableViewDataSource, NSTableViewDelegate {
         let cell = NSTableCellView()
 
         switch tableColumn?.identifier.rawValue {
+        case "preview":
+            buildPreviewCell(cell, item: item, row: row)
         case "check":
             let box = NSButton(checkboxWithTitle: "", target: self, action: #selector(toggleRow(_:)))
             box.state = selected.contains(row) ? .on : .off
@@ -278,6 +302,79 @@ extension LargeFilesView: NSTableViewDataSource, NSTableViewDelegate {
             ])
         }
         return cell
+    }
+
+    private func buildPreviewCell(_ cell: NSView, item: LargeFileItem, row: Int) {
+        let key = item.path + "|\(item.sizeBytes)"
+        let imageView = NSImageView()
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        cell.addSubview(imageView)
+        NSLayoutConstraint.activate([
+            imageView.centerXAnchor.constraint(equalTo: cell.centerXAnchor),
+            imageView.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+            imageView.widthAnchor.constraint(equalToConstant: 40),
+            imageView.heightAnchor.constraint(equalToConstant: 40)
+        ])
+
+        if !thumbnailsOn {
+            return
+        }
+
+        if let cached = thumbnailCache.object(forKey: key as NSString) {
+            imageView.image = cached
+            return
+        }
+        imageView.image = fallbackIcon(for: item.path)
+        guard generatingKeys.insert(key).inserted else { return }
+        generateThumbnail(key: key, path: item.path) { [weak self] image in
+            guard let self = self, let image = image else { return }
+            self.thumbnailCache.setObject(image, forKey: key as NSString)
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                let visible = self.table.rows(in: self.scroll.documentView?.visibleRect ?? .zero)
+                if (visible.lowerBound - 5)...(visible.upperBound + 5) ~= row {
+                    self.table.reloadData(forRowIndexes: IndexSet(integer: row), columnIndexes: IndexSet(integer: 0))
+                }
+            }
+        }
+    }
+
+    private func isMediaFile(_ path: String) -> Bool {
+        let ext = (path as NSString).pathExtension.lowercased()
+        return ["jpg", "jpeg", "png", "gif", "heic", "heif", "tiff", "bmp", "webp",
+                "mov", "mp4", "m4v", "avi", "mkv", "wmv"].contains(ext)
+    }
+
+    private func fallbackIcon(for path: String) -> NSImage? {
+        NSWorkspace.shared.icon(forFile: path)
+    }
+
+    private func generateThumbnail(key: String, path: String, completion: @escaping (NSImage?) -> Void) {
+        let queue = DispatchQueue.global(qos: .utility)
+        queue.async { [weak self] in
+            defer { DispatchQueue.main.async { self?.generatingKeys.remove(key) } }
+            var isDir: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: path, isDirectory: &isDir), !isDir.boolValue else {
+                completion(nil)
+                return
+            }
+            if self?.isMediaFile(path) != true {
+                completion(self?.fallbackIcon(for: path))
+                return
+            }
+            let request = QLThumbnailGenerator.Request(
+                fileAt: URL(fileURLWithPath: path),
+                size: CGSize(width: 40, height: 40),
+                scale: NSScreen.main?.backingScaleFactor ?? 2,
+                representationTypes: .thumbnail)
+            QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { rep, _ in
+                if let rep = rep {
+                    completion(rep.nsImage)
+                } else {
+                    completion(NSWorkspace.shared.icon(forFile: path))
+                }
+            }
+        }
     }
 
     @objc private func toggleRow(_ sender: NSButton) {

@@ -159,6 +159,23 @@ final class SidebarButton: NSControl {
     override func mouseDown(with event: NSEvent) {
         onTap?()
     }
+
+    override func accessibilityRole() -> NSAccessibility.Role? {
+        .button
+    }
+
+    override func accessibilityLabel() -> String? {
+        entry.title
+    }
+
+    override func isAccessibilityElement() -> Bool {
+        true
+    }
+
+    override func accessibilityPerformPress() -> Bool {
+        onTap?()
+        return true
+    }
 }
 
 final class StatCard: NSView {

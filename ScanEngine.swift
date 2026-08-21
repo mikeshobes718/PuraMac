@@ -1,5 +1,10 @@
 import Foundation
 
+struct CleanItem {
+    let path: String
+    let sizeBytes: Int64
+}
+
 struct CleanGroup {
     let id: String
     let title: String
@@ -10,6 +15,7 @@ struct CleanGroup {
     var fileCount = 0
     var checked: Bool
     var skippedNote: String?
+    var largestItems: [CleanItem] = []
 
     init(id: String, title: String, detail: String, defaultChecked: Bool) {
         self.id = id
@@ -57,18 +63,24 @@ final class ScanEngine {
     func scanCleanGroups(progress: @escaping (String) -> Void) -> [CleanGroup] {
         var groups: [CleanGroup] = []
         groups.append(scanDirectoryGroup(id: "caches", title: "User caches",
-            detail: "Per-app caches in ~/Library/Caches", defaultChecked: true, progress: progress))
+            detail: "Temporary files apps create. Apps rebuild them automatically, nothing you made is here.",
+            defaultChecked: true, progress: progress))
         groups.append(scanDirectoryGroup(id: "logs", title: "User logs",
-            detail: "Log files in ~/Library/Logs", defaultChecked: true, progress: progress))
+            detail: "Diagnostic text apps write. Old logs are useless, current ones are kept.",
+            defaultChecked: true, progress: progress))
         groups.append(scanTrash(progress: progress))
         groups.append(scanDirectoryGroup(id: "deriveddata", title: "Xcode DerivedData",
-            detail: "Build products and indexes, safe to rebuild", defaultChecked: true, progress: progress))
+            detail: "Build leftovers from Xcode projects. Rebuilt next time you build.",
+            defaultChecked: true, progress: progress))
         groups.append(scanDirectoryGroup(id: "devicesupport", title: "iOS DeviceSupport",
-            detail: "Device symbol files, safe to rebuild", defaultChecked: false, progress: progress))
+            detail: "Symbol files from iPhones you connected. Regenerated on next connect.",
+            defaultChecked: false, progress: progress))
         groups.append(scanDirectoryGroup(id: "npmcache", title: "npm cache",
-            detail: "Package download cache in ~/.npm/_cacache", defaultChecked: true, progress: progress))
+            detail: "Downloaded packages cached by the npm tool. Redownloaded when needed.",
+            defaultChecked: true, progress: progress))
         groups.append(scanDirectoryGroup(id: "dotcache", title: "Hidden user cache",
-            detail: "Misc tooling caches in ~/.cache", defaultChecked: true, progress: progress))
+            detail: "Cache folders in your home directory. Same as app caches, safe.",
+            defaultChecked: true, progress: progress))
         groups.append(scanBrewCache(progress: progress))
         groups.append(scanOldDownloads(progress: progress))
         return groups
@@ -86,14 +98,16 @@ final class ScanEngine {
         group.totalBytes = measured.bytes
         group.fileCount = measured.count
         group.paths = measured.samples
+        group.largestItems = measured.largest
         return group
     }
 
-    private func measureRoot(root: String, progress: @escaping (String) -> Void) -> (bytes: Int64, count: Int, samples: [String]) {
+    private func measureRoot(root: String, progress: @escaping (String) -> Void) -> (bytes: Int64, count: Int, samples: [String], largest: [CleanItem]) {
         var total: Int64 = 0
         var count = 0
         var samples: [String] = []
-        guard let enumerator = fm.enumerator(atPath: root) else { return (0, 0, []) }
+        var perTopLevel: [String: Int64] = [:]
+        guard let enumerator = fm.enumerator(atPath: root) else { return (0, 0, [], []) }
         let label = (root as NSString).lastPathComponent
         while let rel = enumerator.nextObject() as? String {
             if count % 500 == 0 {
@@ -106,6 +120,8 @@ final class ScanEngine {
                   let raw = attrs[.size] as? NSNumber else { continue }
             total += raw.int64Value
             count += 1
+            let top = rel.components(separatedBy: "/").first ?? rel
+            perTopLevel[top, default: 0] += raw.int64Value
             if samples.count < 6 && raw.int64Value > 8_000_000 {
                 samples.append(full)
             }
@@ -119,12 +135,16 @@ final class ScanEngine {
                 }
             }
         }
-        return (total, count, samples)
+        let largest = perTopLevel
+            .map { CleanItem(path: root + "/" + $0.key, sizeBytes: $0.value) }
+            .sorted { $0.sizeBytes > $1.sizeBytes }
+            .prefix(6)
+        return (total, count, samples, Array(largest))
     }
 
     private func scanTrash(progress: @escaping (String) -> Void) -> CleanGroup {
         var group = CleanGroup(id: "trash", title: "Trash",
-            detail: "Everything currently sitting in the Trash", defaultChecked: false)
+            detail: "Files you already deleted. Emptying removes them permanently.", defaultChecked: false)
         let trash = CleanTargets.expandedRoot(for: "trash")
         guard fm.fileExists(atPath: trash) else {
             group.skippedNote = "Not present on this Mac"
@@ -134,6 +154,7 @@ final class ScanEngine {
         var total: Int64 = 0
         var count = 0
         var samples: [String] = []
+        var largest: [CleanItem] = []
         for entry in topLevelEntries(root: trash) {
             let sized = quickSize(path: entry.path)
             total += sized.bytes
@@ -141,16 +162,22 @@ final class ScanEngine {
             if samples.count < 6 {
                 samples.append(entry.path)
             }
+            largest.append(CleanItem(path: entry.path, sizeBytes: sized.bytes))
+        }
+        largest.sort { $0.sizeBytes > $1.sizeBytes }
+        if largest.count > 6 {
+            largest = Array(largest.prefix(6))
         }
         group.totalBytes = total
         group.fileCount = count
         group.paths = samples
+        group.largestItems = largest
         return group
     }
 
     private func scanBrewCache(progress: @escaping (String) -> Void) -> CleanGroup {
         var group = CleanGroup(id: "brewcache", title: "Homebrew cache",
-            detail: "Downloaded installers and sources kept by brew", defaultChecked: true)
+            detail: "Old downloaded installers from Homebrew. Measured only, brew cleans these itself.", defaultChecked: false)
         guard let root = BrewCacheLocator.locate(), fm.fileExists(atPath: root) else {
             group.skippedNote = "Homebrew not installed"
             return group
@@ -160,12 +187,13 @@ final class ScanEngine {
         group.totalBytes = measured.bytes
         group.fileCount = measured.count
         group.paths = measured.samples
+        group.largestItems = measured.largest
         return group
     }
 
     private func scanOldDownloads(progress: @escaping (String) -> Void) -> CleanGroup {
         var group = CleanGroup(id: "downloads", title: "Downloads older than 30 days",
-            detail: "Files in Downloads untouched for a month, listed individually", defaultChecked: false)
+            detail: "Individual old files from Downloads, expand the row to see them. Checked state is yours to choose.", defaultChecked: false)
         let downloads = ("~/Downloads" as NSString).expandingTildeInPath
         guard fm.fileExists(atPath: downloads) else {
             group.skippedNote = "Not present on this Mac"
@@ -174,13 +202,21 @@ final class ScanEngine {
         progress("Scanning Downloads...")
         let cutoff = Date().addingTimeInterval(-30 * 86400)
         let entries = topLevelEntries(root: downloads).sorted { $0.modified > $1.modified }
+        var sizedEntries: [(path: String, bytes: Int64)] = []
         for entry in entries {
             guard entry.modified < cutoff else { continue }
             let sized = quickSize(path: entry.path)
             group.totalBytes += sized.bytes
             group.fileCount += 1
             group.paths.append(entry.path)
+            sizedEntries.append((entry.path, sized.bytes))
         }
+        group.largestItems = Array(
+            sizedEntries
+                .map { CleanItem(path: $0.path, sizeBytes: $0.bytes) }
+                .sorted { $0.sizeBytes > $1.sizeBytes }
+                .prefix(6)
+        )
         return group
     }
 
