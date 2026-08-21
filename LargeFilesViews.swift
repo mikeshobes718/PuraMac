@@ -125,24 +125,32 @@ final class LargeFilesView: NSView {
     @objc private func moveClicked(_ sender: Any) {
         let chosen = selected.sorted().map { items[$0] }
         guard !chosen.isEmpty else { return }
-        let alert = NSAlert()
-        alert.messageText = "Review removal"
-        var lines: [String] = []
+        var rows: [ReviewRow] = []
         var total: Int64 = 0
         for item in chosen {
             total += item.sizeBytes
-            lines.append(SystemStats.formatBytes(item.sizeBytes) + "   " + (item.path as NSString).lastPathComponent)
+            rows.append(ReviewRow(
+                leading: SystemStats.formatBytes(item.sizeBytes),
+                detail: abbreviateHome(item.path)))
         }
-        lines.append("")
-        lines.append("\(chosen.count) files, " + SystemStats.formatBytes(total) + " total.")
-        lines.append("Files go to the Trash so you can undo this.")
-        alert.informativeText = lines.joined(separator: "\n")
-        alert.addButton(withTitle: "Move to Trash")
-        alert.addButton(withTitle: "Cancel")
-        alert.beginSheetModal(for: window!) { [weak self] response in
-            guard response == .alertFirstButtonReturn else { return }
-            self?.performMove(paths: chosen.map { $0.path })
+        ReviewSheets.show(
+            on: window!,
+            title: "Review removal",
+            rows: rows,
+            totalBytes: total,
+            itemCount: chosen.count,
+            confirmTitle: "Move to Trash",
+            undoNote: "Files go to the Trash so you can undo this.") { [weak self] in
+                self?.performMove(paths: chosen.map { $0.path })
+            }
+    }
+
+    private func abbreviateHome(_ path: String) -> String {
+        let home = NSHomeDirectory()
+        if path.hasPrefix(home) {
+            return "~" + path.dropFirst(home.count)
         }
+        return path
     }
 
     private func performMove(paths: [String]) {

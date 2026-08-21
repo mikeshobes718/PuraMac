@@ -13,6 +13,7 @@ mkdir -p build/PuraMac.app/Contents/MacOS build/PuraMac.app/Contents/Resources
 swiftc -O -o build/PuraMac.app/Contents/MacOS/PuraMac \
     main.swift AppDelegate.swift SystemStats.swift ScanEngine.swift OpenRouterClient.swift \
     Views.swift SmartCleanViews.swift LargeFilesViews.swift AssistantViews.swift SettingsAndLoginViews.swift \
+    ReviewSheets.swift \
     -framework AppKit -framework ServiceManagement -framework UserNotifications
 cp Info.plist build/PuraMac.app/Contents/Info.plist
 cp AppIcon.icns build/PuraMac.app/Contents/Resources/AppIcon.icns

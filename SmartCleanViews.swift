@@ -170,39 +170,35 @@ final class SmartCleanView: NSView {
     }
 
     private func presentReviewSheet(groups selected: [CleanGroup]) {
-        let alert = NSAlert()
-        alert.messageText = "Review cleanup"
-        alert.informativeText = reviewText(groups: selected)
-        alert.addButton(withTitle: "Move to Trash")
-        alert.addButton(withTitle: "Cancel")
-        alert.beginSheetModal(for: window!) { [weak self] response in
-            guard response == .alertFirstButtonReturn else { return }
-            self?.performClean(groups: selected)
-        }
-    }
-
-    private func reviewText(groups selected: [CleanGroup]) -> String {
-        var lines: [String] = []
+        var rows: [ReviewRow] = []
         var total: Int64 = 0
+        var itemCount = 0
         for group in selected {
             total += group.totalBytes
-            var line = group.title + ": " + SystemStats.formatBytes(group.totalBytes)
+            itemCount += max(1, group.fileCount)
+            var leading = group.title + "  " + SystemStats.formatBytes(group.totalBytes)
             if group.id == "downloads" {
-                line += " across \(group.fileCount) files"
+                leading += ", \(group.fileCount) files"
             } else if group.id == "trash" {
-                line += " across \(group.fileCount) items"
+                leading += ", \(group.fileCount) items"
             } else {
-                line += " in \(group.fileCount) files"
+                leading += ", \(group.fileCount) files"
             }
-            lines.append(line)
+            rows.append(ReviewRow(leading: leading, detail: group.detail))
             for path in group.paths.prefix(3) {
-                lines.append("   " + abbreviateHome(path))
+                rows.append(ReviewRow(leading: "", detail: abbreviateHome(path)))
             }
         }
-        lines.append("")
-        lines.append("Total: " + SystemStats.formatBytes(total))
-        lines.append("Everything goes to the Trash so you can undo it.")
-        return lines.joined(separator: "\n")
+        ReviewSheets.show(
+            on: window!,
+            title: "Review cleanup",
+            rows: rows,
+            totalBytes: total,
+            itemCount: itemCount,
+            confirmTitle: "Move to Trash",
+            undoNote: "Everything goes to the Trash so you can undo it.") { [weak self] in
+                self?.performClean(groups: selected)
+            }
     }
 
     private func abbreviateHome(_ path: String) -> String {
