@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>PuraMac</string>
+	<key>CFBundleDisplayName</key>
+	<string>PuraMac</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.mikeshobes.PuraMac</string>
+	<key>CFBundleVersion</key>
+	<string>__BUILD__</string>
+	<key>CFBundleShortVersionString</key>
+	<string>__VERSION__</string>
+	<key>CFBundleExecutable</key>
+	<string>PuraMac</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.utilities</string>
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright © 2026 Mike Shobes. MIT licensed.</string>
+	<key>NSSupportsAutomaticTermination</key>
+	<true/>
+	<key>NSSupportsSuddenTermination</key>
+	<false/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+
+	<!-- macOS gates these folders behind user consent. Without a stated reason
+	     the prompt cannot be shown and access is denied with no explanation. -->
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>PuraMac looks for large and duplicate files on your Desktop. It shows you everything it finds and removes nothing without your say-so.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>PuraMac looks for large and duplicate files in your Documents folder. It shows you everything it finds and removes nothing without your say-so.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>PuraMac looks for old and oversized downloads. It shows you everything it finds and removes nothing without your say-so.</string>
+	<key>NSRemovableVolumesUsageDescription</key>
+	<string>PuraMac reports space used on attached volumes. It never removes anything outside your home folder.</string>
+</dict>
+</plist>
