@@ -78,15 +78,14 @@ struct SmartCleanView: View {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(clean.hasSelection ? "Selected" : "Reclaimable")
-                        .font(.caption.weight(.semibold))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
                     Text(Format.bytes(clean.hasSelection ? clean.selectedBytes : clean.reclaimableBytes))
-                        .font(.system(size: 30, weight: .bold, design: .rounded))
-                        .foregroundStyle(Palette.brand)
+                        .font(.system(size: 26, weight: .medium))
+                        .foregroundStyle(.primary)
                         .contentTransition(.numericText())
                     Text("Everything except emptying the Trash goes to the Trash first, so you can put it back.")
-                        .font(.caption)
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 16)
@@ -97,7 +96,7 @@ struct SmartCleanView: View {
                 }
                 .buttonStyle(GlowButtonStyle())
                 .disabled(!clean.hasSelection || clean.isBusy)
-                .opacity(clean.hasSelection && !clean.isBusy ? 1 : 0.5)
+                
             }
         }
     }

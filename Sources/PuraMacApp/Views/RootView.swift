@@ -23,11 +23,6 @@ struct RootView: View {
         } detail: {
             detail
                 .navigationTitle(model.pane.title)
-                .toolbar {
-                    ToolbarItem(placement: .principal) {
-                        PaneTitleLabel(pane: model.pane)
-                    }
-                }
         }
         .forceWindowAppearance(model.preferences.appearance.colorScheme)
     }
@@ -90,50 +85,20 @@ struct RootView: View {
     }
 }
 
-/// The window titlebar's centre content. The default `.navigationTitle` text
-/// alone reads as bare, unstyled OS chrome next to the rest of the app's
-/// gradient-and-glyph design language, so the titlebar gets the same tinted
-/// icon chip treatment as a sidebar row.
-private struct PaneTitleLabel: View {
-    let pane: Pane
-
-    var body: some View {
-        HStack(spacing: 7) {
-            Image(systemName: pane.symbol)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 20, height: 20)
-                .background(Palette.brand, in: .rect(cornerRadius: 6))
-            Text(pane.title)
-                .font(.system(size: 13, weight: .semibold))
-        }
-    }
-}
-
-/// Sidebar row with a tinted glyph chip, so the navigation reads as a set of
-/// tools rather than a plain text list.
+/// Sidebar row: a small monochrome glyph and a label. Selection is carried by
+/// the list's own highlight, so the row adds no competing colour of its own.
 private struct SidebarRow: View {
     let pane: Pane
     let isSelected: Bool
 
     var body: some View {
-        HStack(spacing: 10) {
+        Label {
+            Text(pane.title).font(.system(size: 13))
+        } icon: {
             Image(systemName: pane.symbol)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(isSelected ? AnyShapeStyle(.white) : AnyShapeStyle(Palette.brandMid))
-                .frame(width: 24, height: 24)
-                .background {
-                    if isSelected {
-                        RoundedRectangle(cornerRadius: 7).fill(Palette.brand)
-                            .shadow(color: Palette.brandMid.opacity(0.5), radius: 5, y: 2)
-                    } else {
-                        RoundedRectangle(cornerRadius: 7).fill(Palette.brandMid.opacity(0.12))
-                    }
-                }
-            Text(pane.title)
-                .font(.body.weight(isSelected ? .semibold : .regular))
+                .font(.system(size: 12))
+                .foregroundStyle(isSelected ? AnyShapeStyle(Palette.accent) : AnyShapeStyle(.secondary))
         }
-        .padding(.vertical, 2)
-        .animation(.spring(duration: 0.25), value: isSelected)
+        .padding(.vertical, 1)
     }
 }

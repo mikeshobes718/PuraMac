@@ -2,70 +2,67 @@ import SwiftUI
 import AppKit
 import PuraMacCore
 
-/// Every colour here is semantic or derived from the brand ramp, so light and
-/// dark mode both come out right without the app ever forcing an appearance.
+/// Flat, neutral surfaces with hairline separation — the current desktop-app
+/// idiom. Colour is reserved for state that actually means something (safety,
+/// capacity, the primary action); everything else stays greyscale so the data
+/// reads first.
 enum Palette {
+    static let pageBackground = Color(nsColor: .windowBackgroundColor)
     static let cardBackground = Color(nsColor: .controlBackgroundColor)
-    static let pageBackground = Color(nsColor: .underPageBackgroundColor)
-    static let hairline = Color(nsColor: .separatorColor)
+    static let hairline = Color.primary.opacity(0.10)
 
-    /// The ramp the app icon is built from: indigo through blue into cyan.
-    static let brandStart = Color(red: 0.41, green: 0.35, blue: 0.96)
-    static let brandMid = Color(red: 0.23, green: 0.41, blue: 0.93)
-    static let brandEnd = Color(red: 0.08, green: 0.67, blue: 0.91)
+    static let accent = Color.accentColor
 
-    static let brand = LinearGradient(
-        colors: [brandStart, brandMid, brandEnd],
-        startPoint: .topLeading, endPoint: .bottomTrailing)
+    /// Retained so existing call sites keep compiling. The UI now leans on
+    /// `accent` plus greyscale rather than a three-stop brand gradient.
+    static let brandStart = Color.accentColor
+    static let brandMid = Color.accentColor
+    static let brandEnd = Color.accentColor
+    static let brand = LinearGradient(colors: [Color.accentColor, Color.accentColor],
+                                      startPoint: .leading, endPoint: .trailing)
 
     static func safety(_ safety: CleanSafety) -> Color {
         switch safety {
-        case .safe: return Color(red: 0.13, green: 0.77, blue: 0.51)
-        case .review: return Color(red: 0.98, green: 0.63, blue: 0.15)
-        case .caution: return Color(red: 0.97, green: 0.35, blue: 0.42)
+        case .safe: return Color(red: 0.20, green: 0.72, blue: 0.47)
+        case .review: return Color(red: 0.90, green: 0.62, blue: 0.20)
+        case .caution: return Color(red: 0.90, green: 0.38, blue: 0.38)
         }
     }
 
     static func usage(_ fraction: Double) -> Color {
         switch fraction {
-        case ..<0.75: return Color(red: 0.13, green: 0.77, blue: 0.51)
-        case ..<0.90: return Color(red: 0.98, green: 0.63, blue: 0.15)
-        default: return Color(red: 0.97, green: 0.35, blue: 0.42)
+        case ..<0.75: return Color(red: 0.20, green: 0.72, blue: 0.47)
+        case ..<0.90: return Color(red: 0.90, green: 0.62, blue: 0.20)
+        default: return Color(red: 0.90, green: 0.38, blue: 0.38)
         }
     }
 
     static func ramp(_ color: Color) -> LinearGradient {
-        LinearGradient(colors: [color.opacity(0.95), color.opacity(0.62)],
-                       startPoint: .top, endPoint: .bottom)
+        LinearGradient(colors: [color, color], startPoint: .top, endPoint: .bottom)
     }
 }
 
-/// A frosted panel with a hairline gradient rim and a soft lift, rather than a
-/// flat filled rectangle.
+/// A plain surface with a hairline edge. No shadow, no gradient rim — those
+/// read as depth for depth's sake and are what date an interface fastest.
 struct Card<Content: View>: View {
-    var padding: CGFloat = 16
+    var padding: CGFloat = 18
     @ViewBuilder var content: Content
 
     var body: some View {
         content
             .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.regularMaterial, in: .rect(cornerRadius: 14))
+            .background(Palette.cardBackground, in: .rect(cornerRadius: 10))
             .overlay(
-                RoundedRectangle(cornerRadius: 14).strokeBorder(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.28), Color.white.opacity(0.05)],
-                        startPoint: .top, endPoint: .bottom),
-                    lineWidth: 1))
-            .shadow(color: .black.opacity(0.16), radius: 12, y: 5)
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(Palette.hairline, lineWidth: 1))
     }
 }
 
-/// Circular gauge used for the headline storage read-out. Hand-rolled rather
-/// than `Gauge` so the track, the gradient sweep and the glow can be tuned.
+/// Thin capacity ring. One colour, no glow — it is a read-out, not an ornament.
 struct RingGauge<Center: View>: View {
     let progress: Double
-    var lineWidth: CGFloat = 16
+    var lineWidth: CGFloat = 8
     var tint: Color = .accentColor
     @ViewBuilder var center: Center
 
@@ -73,28 +70,22 @@ struct RingGauge<Center: View>: View {
 
     var body: some View {
         ZStack {
-            Circle()
-                .stroke(Color.primary.opacity(0.08), lineWidth: lineWidth)
-
+            Circle().stroke(Color.primary.opacity(0.09), lineWidth: lineWidth)
             Circle()
                 .trim(from: 0, to: max(0.001, min(1, animated)))
-                .stroke(
-                    AngularGradient(
-                        colors: [tint.opacity(0.55), tint, tint.opacity(0.85)],
-                        center: .center, startAngle: .degrees(0), endAngle: .degrees(360)),
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-                .shadow(color: tint.opacity(0.5), radius: 9)
-
             center
         }
-        .onAppear { withAnimation(.spring(duration: 0.9)) { animated = progress } }
+        .onAppear { withAnimation(.easeOut(duration: 0.5)) { animated = progress } }
         .onChange(of: progress) { _, new in
-            withAnimation(.spring(duration: 0.6)) { animated = new }
+            withAnimation(.easeOut(duration: 0.35)) { animated = new }
         }
     }
 }
 
+/// Muted label, large plain figure, optional thin meter. The number carries the
+/// emphasis instead of a coloured chip competing with it.
 struct StatTile: View {
     let title: String
     let value: String
@@ -105,42 +96,38 @@ struct StatTile: View {
 
     var body: some View {
         Card {
-            VStack(alignment: .leading, spacing: 9) {
-                HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 6) {
                     Image(systemName: symbol)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 26, height: 26)
-                        .background(Palette.ramp(tint), in: .rect(cornerRadius: 8))
-                        .shadow(color: tint.opacity(0.45), radius: 5, y: 2)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
                     Text(title)
-                        .font(.caption.weight(.semibold))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
 
                 Text(value)
-                    .font(.system(size: 27, weight: .bold, design: .rounded))
+                    .font(.system(size: 28, weight: .medium))
                     .foregroundStyle(.primary)
                     .contentTransition(.numericText())
                     .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .minimumScaleFactor(0.6)
 
                 if let progress {
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
-                            Capsule().fill(Color.primary.opacity(0.08))
+                            Capsule().fill(Color.primary.opacity(0.09))
                             Capsule()
-                                .fill(Palette.ramp(tint))
-                                .frame(width: max(4, geo.size.width * min(1, max(0, progress))))
-                                .shadow(color: tint.opacity(0.5), radius: 4)
+                                .fill(tint)
+                                .frame(width: max(3, geo.size.width * min(1, max(0, progress))))
                         }
                     }
-                    .frame(height: 6)
-                    .animation(.spring(duration: 0.6), value: progress)
+                    .frame(height: 4)
+                    .animation(.easeOut(duration: 0.35), value: progress)
                 }
 
                 Text(detail)
-                    .font(.caption)
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -155,12 +142,11 @@ struct SafetyBadge: View {
 
     var body: some View {
         Text(safety.label)
-            .font(.caption2.weight(.bold))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(Palette.safety(safety).opacity(0.18), in: .capsule)
-            .overlay(Capsule().strokeBorder(Palette.safety(safety).opacity(0.35), lineWidth: 0.5))
+            .font(.system(size: 10, weight: .medium))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
             .foregroundStyle(Palette.safety(safety))
+            .background(Palette.safety(safety).opacity(0.12), in: .rect(cornerRadius: 4))
             .accessibilityLabel("Safety: \(safety.label)")
     }
 }
@@ -172,10 +158,11 @@ struct PaneHeader<Trailing: View>: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.system(size: 24, weight: .bold, design: .rounded))
-                Text(subtitle).font(.callout).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.system(size: 22, weight: .semibold))
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
             }
             Spacer(minLength: 16)
             trailing
@@ -183,47 +170,39 @@ struct PaneHeader<Trailing: View>: View {
     }
 }
 
-/// Scanning banner with a travelling sheen, so a long scan looks alive rather
-/// than hung.
 struct ProgressBanner: View {
     let text: String
     let fraction: Double?
     var onCancel: (() -> Void)?
 
     var body: some View {
-        Card(padding: 13) {
-            HStack(spacing: 13) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Palette.brand)
-                    .symbolEffect(.pulse)
+        Card(padding: 12) {
+            HStack(spacing: 12) {
+                ProgressView().controlSize(.small)
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(text.isEmpty ? "Working…" : text)
-                        .font(.callout.weight(.medium))
+                        .font(.system(size: 12))
                         .lineLimit(1)
-                        .contentTransition(.opacity)
 
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
-                            Capsule().fill(Color.primary.opacity(0.08))
+                            Capsule().fill(Color.primary.opacity(0.09))
                             if let fraction {
                                 Capsule()
-                                    .fill(Palette.brand)
-                                    .frame(width: max(6, geo.size.width * min(1, max(0, fraction))))
-                                    .shadow(color: Palette.brandMid.opacity(0.6), radius: 5)
+                                    .fill(Palette.accent)
+                                    .frame(width: max(3, geo.size.width * min(1, max(0, fraction))))
                             } else {
                                 IndeterminateSheen(width: geo.size.width)
                             }
                         }
                     }
-                    .frame(height: 6)
-                    .animation(.spring(duration: 0.5), value: fraction)
+                    .frame(height: 4)
+                    .animation(.easeOut(duration: 0.3), value: fraction)
                 }
 
                 if let onCancel {
                     Button("Cancel", role: .cancel, action: onCancel)
-                        .buttonStyle(.bordered)
                         .controlSize(.small)
                 }
             }
@@ -237,15 +216,13 @@ private struct IndeterminateSheen: View {
     var body: some View {
         TimelineView(.animation) { context in
             let t = context.date.timeIntervalSinceReferenceDate
-            let cycle = 1.6
+            let cycle = 1.4
             let phase = (t.truncatingRemainder(dividingBy: cycle)) / cycle
-            let barWidth = max(40, width * 0.32)
-            let x = -barWidth + (width + barWidth * 2) * phase
+            let barWidth = max(36, width * 0.28)
             Capsule()
-                .fill(Palette.brand)
+                .fill(Palette.accent)
                 .frame(width: barWidth)
-                .offset(x: x)
-                .opacity(0.9)
+                .offset(x: -barWidth + (width + barWidth * 2) * phase)
         }
         .clipShape(Capsule())
     }
@@ -257,19 +234,17 @@ struct MessageBanner: View {
     let text: String
     var onDismiss: (() -> Void)?
 
-    private var tint: Color { kind == .error ? Palette.safety(.caution) : Palette.brandMid }
-    private var symbol: String { kind == .error ? "exclamationmark.triangle.fill" : "sparkles" }
+    private var tint: Color { kind == .error ? Palette.safety(.caution) : Palette.accent }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 11) {
-            Image(systemName: symbol)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 24, height: 24)
-                .background(Palette.ramp(tint), in: .rect(cornerRadius: 7))
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: kind == .error ? "exclamationmark.triangle.fill" : "info.circle.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(tint)
+                .padding(.top, 1)
 
             Text(text)
-                .font(.callout)
+                .font(.system(size: 12))
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
             Spacer(minLength: 8)
@@ -277,15 +252,17 @@ struct MessageBanner: View {
                 Button {
                     onDismiss()
                 } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Dismiss")
             }
         }
-        .padding(12)
-        .background(tint.opacity(0.10), in: .rect(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(tint.opacity(0.22), lineWidth: 1))
+        .padding(11)
+        .background(tint.opacity(0.08), in: .rect(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(tint.opacity(0.18), lineWidth: 1))
     }
 }
 
@@ -297,26 +274,21 @@ struct EmptyStateView: View {
     var action: (() -> Void)?
 
     var body: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 10) {
             Image(systemName: symbol)
-                .font(.system(size: 40, weight: .light))
-                .foregroundStyle(Palette.brand)
-                .frame(width: 92, height: 92)
-                .background(
-                    Circle().fill(Palette.brandMid.opacity(0.10))
-                        .overlay(Circle().strokeBorder(Palette.brandMid.opacity(0.22), lineWidth: 1)))
-                .shadow(color: Palette.brandMid.opacity(0.28), radius: 18, y: 6)
+                .font(.system(size: 26, weight: .light))
+                .foregroundStyle(.tertiary)
 
-            Text(title).font(.title3.weight(.semibold))
+            Text(title).font(.system(size: 14, weight: .semibold))
             Text(message)
-                .font(.callout)
+                .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 430)
+                .frame(maxWidth: 400)
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
                     .buttonStyle(GlowButtonStyle())
-                    .padding(.top, 4)
+                    .padding(.top, 6)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -324,24 +296,18 @@ struct EmptyStateView: View {
     }
 }
 
-/// Prominent action button with the brand ramp and a matching glow.
+/// Primary action. Flat accent fill — the coloured glow this used to carry is
+/// exactly the kind of decoration that dates an interface. Name kept so the
+/// existing call sites keep compiling.
 struct GlowButtonStyle: ButtonStyle {
-    var tint: LinearGradient = Palette.brand
-    var glow: Color = Palette.brandMid
-
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.body.weight(.semibold))
+            .font(.system(size: 12, weight: .medium))
             .foregroundStyle(.white)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(tint, in: .rect(cornerRadius: 9))
-            .overlay(RoundedRectangle(cornerRadius: 9)
-                .strokeBorder(Color.white.opacity(0.25), lineWidth: 0.5))
-            .shadow(color: glow.opacity(configuration.isPressed ? 0.25 : 0.5),
-                    radius: configuration.isPressed ? 4 : 10, y: 3)
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .animation(.spring(duration: 0.25), value: configuration.isPressed)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 6)
+            .background(Palette.accent.opacity(configuration.isPressed ? 0.75 : 1),
+                        in: .rect(cornerRadius: 7))
     }
 }
 
@@ -354,24 +320,21 @@ struct RevealButton: View {
         Button {
             NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
         } label: {
-            Image(systemName: "magnifyingglass")
+            Image(systemName: "arrow.up.forward.square")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
         }
-        .buttonStyle(.borderless)
+        .buttonStyle(.plain)
         .help("Reveal in Finder")
         .accessibilityLabel("Reveal \((path as NSString).lastPathComponent) in Finder")
     }
 }
 
-/// Page chrome: a tinted wash behind every pane so panels read as floating.
+/// Flat page ground. The previous tinted gradient wash bled a muddy band down
+/// the edge of the detail pane, which is what made the split look misaligned.
 struct PaneBackground: View {
     var body: some View {
-        ZStack {
-            Palette.pageBackground
-            LinearGradient(
-                colors: [Palette.brandStart.opacity(0.12), .clear, Palette.brandEnd.opacity(0.10)],
-                startPoint: .topLeading, endPoint: .bottomTrailing)
-        }
-        .ignoresSafeArea()
+        Palette.pageBackground.ignoresSafeArea()
     }
 }
 
@@ -420,18 +383,15 @@ extension View {
             .onChange(of: scheme) { _, updated in AppearanceController.apply(updated) }
             .preferredColorScheme(scheme)
     }
-}
 
-extension View {
     func paneLayout() -> some View {
         self
-            .padding(24)
+            .padding(22)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(PaneBackground())
     }
 
-    /// Gradient text for headline figures.
     func brandText() -> some View {
-        self.foregroundStyle(Palette.brand)
+        self.foregroundStyle(Palette.accent)
     }
 }

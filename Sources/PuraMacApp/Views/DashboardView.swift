@@ -49,29 +49,28 @@ struct DashboardView: View {
             HStack(alignment: .center, spacing: 26) {
                 RingGauge(
                     progress: disk.isValid ? disk.usedFraction : 0,
-                    lineWidth: 18,
+                    lineWidth: 8,
                     tint: Palette.usage(disk.usedFraction)
                 ) {
                     VStack(spacing: 1) {
                         Text(disk.isValid ? Format.percent(disk.usedFraction) : "—")
-                            .font(.system(size: 30, weight: .bold, design: .rounded))
+                            .font(.system(size: 24, weight: .medium))
                             .contentTransition(.numericText())
                         Text("used")
-                            .font(.caption2.weight(.medium))
+                            .font(.system(size: 10))
                             .foregroundStyle(.secondary)
                     }
                 }
-                .frame(width: 148, height: 148)
+                .frame(width: 120, height: 120)
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text(disk.isValid ? disk.name : "Storage")
-                        .font(.caption.weight(.semibold))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
 
                     Text(disk.isValid ? Format.bytes(disk.freeBytes) : "Unknown")
-                        .font(.system(size: 42, weight: .bold, design: .rounded))
-                        .foregroundStyle(Palette.brand)
+                        .font(.system(size: 34, weight: .medium))
+                        .foregroundStyle(.primary)
                         .contentTransition(.numericText())
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
@@ -79,14 +78,14 @@ struct DashboardView: View {
                     Text(disk.isValid
                          ? "free of \(Format.bytes(disk.totalBytes)) · \(Format.bytes(disk.usedBytes)) in use"
                          : "Could not read the boot volume")
-                        .font(.callout)
+                        .font(.system(size: 12))
                         .foregroundStyle(.secondary)
 
-                    HStack(spacing: 8) {
+                    HStack(spacing: 6) {
                         Image(systemName: adviceSymbol)
                             .foregroundStyle(Palette.usage(disk.usedFraction))
                         Text(advice)
-                            .font(.callout)
+                            .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -197,7 +196,7 @@ struct DashboardView: View {
     private var quickActions: some View {
         Card {
             VStack(alignment: .leading, spacing: 13) {
-                Text("Reclaim space").font(.headline)
+                Text("Reclaim space").font(.system(size: 12, weight: .semibold)).foregroundStyle(.secondary)
                 HStack(spacing: 11) {
                     action("Smart Clean", "sparkles", "Caches, logs and build leftovers", Palette.brandStart) {
                         model.pane = .smartClean
@@ -225,23 +224,20 @@ struct DashboardView: View {
         Button(action: run) {
             VStack(alignment: .leading, spacing: 7) {
                 Image(systemName: symbol)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Palette.ramp(tint), in: .rect(cornerRadius: 9))
-                    .shadow(color: tint.opacity(0.45), radius: 6, y: 2)
-                Text(title).font(.callout.weight(.semibold))
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+                Text(title).font(.system(size: 12, weight: .medium))
                 Text(subtitle)
-                    .font(.caption)
+                    .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(13)
-            .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 11))
-            .overlay(RoundedRectangle(cornerRadius: 11)
-                .strokeBorder(tint.opacity(0.22), lineWidth: 1))
+            .padding(12)
+            .background(Color.primary.opacity(0.03), in: .rect(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Palette.hairline, lineWidth: 1))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(title). \(subtitle)")
