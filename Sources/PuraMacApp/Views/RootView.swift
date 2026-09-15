@@ -23,6 +23,11 @@ struct RootView: View {
         } detail: {
             detail
                 .navigationTitle(model.pane.title)
+                .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        PaneTitleLabel(pane: model.pane)
+                    }
+                }
         }
         .forceWindowAppearance(model.preferences.appearance.colorScheme)
     }
@@ -82,6 +87,26 @@ struct RootView: View {
         .accessibilityLabel(disk.isValid
             ? "\(disk.name), \(Format.bytes(disk.freeBytes)) free of \(Format.bytes(disk.totalBytes))"
             : "Disk usage unavailable")
+    }
+}
+
+/// The window titlebar's centre content. The default `.navigationTitle` text
+/// alone reads as bare, unstyled OS chrome next to the rest of the app's
+/// gradient-and-glyph design language, so the titlebar gets the same tinted
+/// icon chip treatment as a sidebar row.
+private struct PaneTitleLabel: View {
+    let pane: Pane
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: pane.symbol)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 20, height: 20)
+                .background(Palette.brand, in: .rect(cornerRadius: 6))
+            Text(pane.title)
+                .font(.system(size: 13, weight: .semibold))
+        }
     }
 }
 
